@@ -1,185 +1,222 @@
 <script lang="ts">
+	import { wordleStore, canSubmit, wordStore } from "./stores/WordleStore"
+	import { onMount } from "svelte";
 	import Row from "./components/Row/Row.svelte"
 	import Button from "./components/Button/Button.svelte"
-	import { AppState, GameState, Tile, TileRow, TileState } from "./types";
-	import { afterUpdate, onMount } from "svelte";
+	import { GameState, MatchResult, Tile, TileRow } from "./types";
+	import { TOTAL_ATTEMPTS } from "./constants/AppConstants";
 
-	const attempts = 6
+	document.onkeyup = (event: KeyboardEvent) => {
+		switch (event.code) {
+			case 'Backspace':
+				const previousSibling = event.target?.previousSibling
+				previousSibling?.focus()
+				break
+			case 'Enter':
+				if (!$canSubmit) return
+				submit()
+				const nextParent = event.target?.parentNode?.nextSibling?.firstChild
+				console.log('PARENT NODE', nextParent)
+				nextParent.focus()
+				break
+			default:
+				var regex = new RegExp('^Key[A-Z]')
+				
+				const isLetter = regex.test(event.code)
+				if (!isLetter) return
 
-	let appState: AppState = {
-		state: GameState.INITIAL,
-		word: '',
-		rows: [],
-		currentTileIndex: 0,
-		currentRowIndex: 0,
-		remainingAttempts: attempts,
-		canGuess: false
+				const nextSibling = event.target?.nextSibling
+				nextSibling?.focus()
+				break
+		}
 	}
 	
 	onMount(() => {
-		console.log('MOUNTED')
+		console.log('MUNT')
 		start()
 	})
 
-	afterUpdate(() => {
-		focusNext(appState.currentRowIndex, appState.currentTileIndex)
-	})
+	function createRows(columns: number): Array<TileRow> {
+		const rows = Array()
+
+		for (var i = 0; i < TOTAL_ATTEMPTS; i++) {
+			const tiles = Array<Tile>()
+			const isFirstRow = i === 0
+			
+			for (var j = 0; j < columns; j++) {
+				tiles.push({
+					index: j,
+					value: '',
+					matchResult: MatchResult.INITIAL,
+					onInput: onInput
+				})
+			}
+	
+			rows.push({
+				index: i,
+				isActive: isFirstRow,
+				tiles: tiles
+			})
+		}
+
+		return rows
+	}
 
 	function start() {
-		const word = 'PØLSE'
-		const rows = Array<TileRow>()
+		const currentWord = getWord()
+		const rows = createRows(currentWord.length)
 
-		for (var i = 0; i < attempts; i++) {
-			const tiles = Array<Tile>()
-			
-			for (var j = 0; j < word.length; j++) {
-				const tile = {
-					rowIndex: i,
-					tileIndex: j,
-					value: '',
-					state: TileState.INITIAL,
-					onInput: onInput
-				}
-	
-				tiles.push(tile)
+		wordleStore.update(store => {
+			return {
+				...store,
+				gameState: GameState.GAME_START,
+				currentWord: currentWord,
+				currentRow: rows[0],
+				rows: rows,
+				attemptsLeft: TOTAL_ATTEMPTS
 			}
-	
-			const row = {
-				tiles: tiles,
-				disabled: i !== 0
-			}
-	
-			rows.push(row)
-		}
+		})
+	}
 
-		appState = {
-			...appState,
-			state: GameState.INITIAL,
-			rows: rows,
-			word: word,
-			currentRowIndex: 0,
-			currentTileIndex: 0,
-			remainingAttempts: attempts,
-			canGuess: false
+	function getWord(): string {
+		const nextWordIndex = Math.floor(Math.random() * $wordStore.size)
+		let i = 0
+
+		for (let word of $wordStore) {
+			if (i === nextWordIndex) {
+				return word
+			}
+
+			i++
 		}
 	}
 
-	function checkWord() {
-		const currentRow = appState.rows[appState.currentRowIndex]
+	function matchCharacters(word: string, row: TileRow): Array<MatchResult> {
+		const wordLowerCased = word.toLowerCase()
 
-		let exactMatches = 0
+		const result = row.tiles.map((tile, index) => {
+			const value = tile.value.toLowerCase()
+			const matchesExact = wordLowerCased.charAt(index) === value
+			const includesCharacter = !!value && wordLowerCased.includes(value)
 
-		for (var i = 0; i < currentRow.tiles.length; i++) {
-			const tile = currentRow.tiles[i]
-			const value = tile.value.toUpperCase()
-			
-			const exactMatch = appState.word.charAt(i) === value
-			const includesLetter = !!value && appState.word.includes(value)
-
-			if (exactMatch) {
-				exactMatches++
-				currentRow.tiles[i].state = TileState.CORRECT
-			} else if (includesLetter) {
-				currentRow.tiles[i].state = TileState.INCLUDES
+			if (matchesExact) {
+				return MatchResult.MATCHES_EXACT
+			} else if (includesCharacter) {
+				return MatchResult.MATCHES_PARTIALLY
 			} else {
-				currentRow.tiles[i].state = TileState.WRONG
+				return MatchResult.NO_MATCH
 			}
-		}
-		
-		appState = {
-			...appState,
-			rows: [...appState.rows.slice(0, appState.currentRowIndex), currentRow, ...appState.rows.slice(appState.currentRowIndex + 1)],
-			currentTileIndex: 0,
-			currentRowIndex: ++appState.currentRowIndex,
-			remainingAttempts: --appState.remainingAttempts
-		}
+		})
 
-		const hasRemainingAttempts = appState.remainingAttempts > 0
-		const didGuessCorrect = appState.word.length === exactMatches
-
-		if (didGuessCorrect || !hasRemainingAttempts) {
-			finish()
-		} else {
-			nextRow()
-		}
+		return result
 	}
 
-	function finish() {
-		appState = {
-			...appState,
-			state: GameState.FINISHED,
-			rows: appState.rows.map(row => {
-				row.disabled = true
-				return row
-			})
-		}
+	function updateResult(matchResults: Array<MatchResult>) {
+		wordleStore.update(store => {
+			const wordMatches = matchResults.every(result => result === MatchResult.MATCHES_EXACT)
+			const attemptsLeft = --store.attemptsLeft
+			const nextRow = store.rows.at(store.currentRow.index + 1)
+
+			var updatedStore = {
+				...store,
+				attemptsLeft: attemptsLeft,
+				currentRow: nextRow,
+				rows: store.rows.map((row, index) => {
+					const isActiveRow = index === store.currentRow.index
+					const isNextRow = index === nextRow?.index ?? false
+					
+					if (isActiveRow) {
+						row.tiles = row.tiles.map((tile, index) => {
+							tile.matchResult = matchResults[index]
+							return tile
+						})
+					}
+					
+					row.isActive = isNextRow && !wordMatches && attemptsLeft > 0
+
+					return row
+				})
+			}
+
+			if (wordMatches || attemptsLeft === 0) {
+				updatedStore.gameState = wordMatches ? GameState.GAME_WON : GameState.GAME_LOST
+			}
+
+			return updatedStore
+		})
 	}
 
-	function nextRow() {
-		appState = {
-			...appState,
-			canGuess: false,
-			rows: appState.rows.map((row, index) => {
-				row.disabled = index !== appState.currentRowIndex
-				return row
-			})
-		}
+	function updateTile(index: number, value: string) {
+		wordleStore.update(store => {
+			return {
+				...store,
+				rows: store.rows.map(row => {
+					const isCurrentRow = row.index === store.currentRow.index
+
+					if (isCurrentRow) {
+						row.tiles[index].value = value
+					}
+
+					return row
+				})
+			}
+		})
 	}
 
-	function onInput(event, tile) {
-		const value = event.target.value
-		const row = appState.rows[appState.currentRowIndex]
-		const tiles = row.tiles
-		
-		tiles[tile.tileIndex].value = value
-		
-		const clearValue = value === ''
-		const nextTileIndex = clearValue ? tile.tileIndex - 1 : tile.tileIndex + 1
-
-		const canGuess = tiles.map(tile => !!tile.value).reduce((a, b) => a && b)
-
-		appState = {
-			...appState,
-			rows: [ ...appState.rows.slice(0, appState.currentRowIndex), row, ...appState.rows.slice(appState.currentRowIndex + 1)],
-			currentTileIndex: nextTileIndex,
-			canGuess: canGuess
-		}
+	function submit() {
+		const matchResult = matchCharacters($wordleStore.currentWord, $wordleStore.currentRow)
+		updateResult(matchResult)
 	}
 
-	function focusNext(rowIndex: number, tileIndex: number) {
-		if (rowIndex !== appState.currentRowIndex) return
-		if (tileIndex < 0 || tileIndex === appState.word.length) return
-
-		const nextElement = document.getElementById(`input-${rowIndex}${tileIndex}`)
-		
-		if (nextElement) {
-			nextElement.focus()
-		}
+	function onInput(event: InputEvent, tile: Tile) {
+		const value = event.data
+		updateTile(tile.index, value)
 	}
 </script>
 
 <main>
-	<h1>WORDLE</h1>
-	<p>Norske ord på fem bokstaver</p>
+	<header class="header">
+		<h1>WORDLE</h1>
+		<p><b>{$wordStore.size}</b> ord på fem bokstaver</p>
+	</header>
 	<div class="wrapper">
-		{#each appState.rows as _, i}
-			<Row tileRow={appState.rows[i]} />
+		{#each $wordleStore.rows as row}
+			<Row tileRow={row} />
 		{/each}
 	</div>
-	<div class="footer">
-		{#if appState.state === GameState.INITIAL || appState.state === GameState.STARTED }
-			<Button disabled={!appState.canGuess} title={'Gjett'} onClick={checkWord} />
-		{:else}
-			<Button disabled={false} title={'Start ny'} onClick={start} />
+	<footer class="footer">
+		{#if $wordleStore.gameState === GameState.GAME_LOST}
+			<p class="game-result">Du tapte. Riktig ord var <b>{$wordleStore.currentWord.toUpperCase()}</b>.</p>
 		{/if}
-	</div>
+
+		{#if $wordleStore.gameState === GameState.INITIAL || $wordleStore.gameState === GameState.GAME_START }
+			<Button disabled={!$canSubmit} title={'ENTER'} onClick={() => submit()} />
+		{:else}
+			<Button disabled={false} title={'NYTT SPILL'} onClick={start} />
+		{/if}
+	</footer>
 </main>
 
 <style>
 	main {
 		text-align: center;
 		padding: 1em;
-		margin: 0 auto;
+		background-color: black;
+	}
+
+	:global(body) {
+		height: 100%;
+		width: 100%;
+		color: #9d9da3;
+		background-color: black;
+	}
+
+	header {
+		margin: 32px 0 32px 0;
+	}
+
+	p {
+		margin: 0;
 	}
 
 	h1 {
@@ -187,6 +224,7 @@
 		text-transform: uppercase;
 		font-size: 4em;
 		font-weight: 100;
+		margin: 0;
 	}
 
 	.wrapper {
@@ -196,8 +234,13 @@
 
 	.footer {
 		display: flex;
-		margin: 32px;
+		flex-direction: column;
 		justify-content: center;
+		margin: 32px 0 0 0;
+	}
+
+	.game-result {
+		margin: 0 0 32px 0;
 	}
 
 	@media (min-width: 640px) {

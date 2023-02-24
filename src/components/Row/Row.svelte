@@ -11,11 +11,10 @@
         flex-grow: 1;
         justify-content: center;
     }
-
 </style>
 
 <div>
     { #each tileRow.tiles as tile}
-    <TextInput disabled={tileRow.disabled} {tile} />
+        <TextInput disabled={!tileRow.isActive} rowIndex={tileRow.index} {tile} />
     { /each}
 </div>

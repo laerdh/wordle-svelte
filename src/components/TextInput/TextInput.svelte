@@ -1,7 +1,8 @@
 <script lang="ts">
     import { beforeUpdate } from "svelte";
-    import { Tile, TileState } from "../../types";
+    import { Tile, MatchResult } from "../../types";
 
+    export let rowIndex: number
     export let tile: Tile
     export let disabled: boolean
 
@@ -9,20 +10,20 @@
     let tileStateClass: string = 'initial'
 
     beforeUpdate(() => {
-        tileId = `input-${tile.rowIndex}${tile.tileIndex}`
+        tileId = `input-${rowIndex}${tile.index}`
 
-        switch (tile.state) {
-            case TileState.INITIAL:
+        switch (tile.matchResult) {
+            case MatchResult.INITIAL:
                 tileStateClass = 'initial'
                 break
-            case TileState.CORRECT:
-                tileStateClass = 'correct'
+            case MatchResult.MATCHES_EXACT:
+                tileStateClass = 'full-match'
                 break
-            case TileState.WRONG:
-                tileStateClass = 'wrong'
+            case MatchResult.MATCHES_PARTIALLY:
+                tileStateClass = 'partial-match'
                 break
-            case TileState.INCLUDES:
-                tileStateClass = 'includes'
+            case MatchResult.NO_MATCH:
+                tileStateClass = 'no-match'
                 break
         }
     })
@@ -30,14 +31,16 @@
 
 <style>
     input {
-        max-width: 2em;
-        max-height: 2em;
+        width: 62px;
+        height: 62px;
         text-align: center;
-        background-color: lightgray;
-        font-size: 1.5em;
+        border: 2px solid #3A3A3C;
+        background-color: black;
+        color: white;
+        font-size: 2em;
         font-weight: bold;
         text-transform: uppercase;
-        margin: 2px;
+        margin: 3px;
     }
 
     @media (min-width: 640px) {
@@ -47,26 +50,27 @@
         }
     }
 
-    .correct {
+    .full-match {
         background-color: green;
+        border: 2px solid green;
     }
 
-    .wrong {
-        background-color: grey;
-    }
-
-    .includes {
+    .partial-match {
         background-color: orange;
+        border: 2px solid orange;
+    }
+
+    .no-match {
+        background-color: #3A3A3C;
+        border: 2px solid #3A3A3C;
     }
 </style>
 
-<div>
-    <input
-        id={tileId}
-        class={tileStateClass}
-        value={tile.value}
-        type="text"
-        disabled={disabled}
-        maxlength="1"
-        on:input={(event) => tile.onInput(event, tile)} />
-</div>
+<input
+    id={tileId}
+    class={tileStateClass}
+    value={tile.value}
+    type="text"
+    disabled={disabled}
+    maxlength="1"
+    on:input={(event) => tile.onInput(event, tile)} />

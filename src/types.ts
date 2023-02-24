@@ -1,35 +1,26 @@
-export interface AppState {
-    state: GameState
-    word: string
-    rows: Array<TileRow>
-    currentTileIndex: number
-    currentRowIndex: number
-    remainingAttempts: number
-    canGuess: boolean
-}
-
-export enum TileState {
+export enum MatchResult {
     INITIAL,
-    WRONG,
-    INCLUDES,
-    CORRECT
+    MATCHES_EXACT,
+    MATCHES_PARTIALLY,
+    NO_MATCH
 }
 
 export enum GameState {
     INITIAL,
-    STARTED,
-    FINISHED
+    GAME_START,
+    GAME_LOST,
+    GAME_WON
 }
 
 export interface Tile {
-    rowIndex: number
-    tileIndex: number
+    index: number
     value: string
-    state: TileState
+    matchResult: MatchResult
     onInput: (event: Event, tile: Tile) => void
 }
 
 export interface TileRow {
+    index: number
+    isActive: boolean
     tiles: Array<Tile>
-    disabled: boolean
 }

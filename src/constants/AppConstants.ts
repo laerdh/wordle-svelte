@@ -1,0 +1,1 @@
+export const TOTAL_ATTEMPTS: number = 6
