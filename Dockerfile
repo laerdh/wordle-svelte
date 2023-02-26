@@ -2,11 +2,16 @@ FROM node
 
 WORKDIR /usr/src/wordle-app
 
-COPY package*.json .
-RUN yarn install
-COPY . .
-RUN yarn build
+ARG SERVER_PORT=80
+ENV SERVER_PORT=$SERVER_PORT
 
-EXPOSE 3000
+COPY package.json .
+COPY yarn.lock .
+
+RUN yarn install
+
+COPY . .
+
+RUN yarn build
 
 CMD ["node", "server.ts"]
