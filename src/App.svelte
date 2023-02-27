@@ -169,7 +169,7 @@
 	}
 
 	function onInput(event: InputEvent, tile: Tile) {
-		const value = event.data
+		const value = event.data ?? ''
 		updateTile(tile.index, value)
 	}
 </script>

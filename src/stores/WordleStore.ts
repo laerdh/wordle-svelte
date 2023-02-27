@@ -20,16 +20,16 @@ export const canSubmit = derived(
         if ($store.currentRow === undefined) {
             return false
         }
-        console.log('Store, Current Row, Words', $store, $store.currentRow, $wordStore)
 
         let currentWord = $store?.currentWord
-        let inputWord = $store.currentRow?.tiles?.map(tile => tile.value)?.reduce((a, b) => a + b)
+        let inputWord = $store.currentRow?.tiles?.map(tile => tile.value)?.reduce((a, b) => a + b)?.toLowerCase()
 
         if (inputWord?.length < currentWord?.length) {
             return false
         }
 
         let isValidWord = $wordStore.has(inputWord)
+        
         return isValidWord && inputWord.length === currentWord.length
     }
 )
